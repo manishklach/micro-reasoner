@@ -9,7 +9,11 @@
 
 **CPU-first reasoning-model lab** — train a small instruct model into a measurable reasoning assistant using SFT, lightweight preference tuning, and local deployment.
 
-**Current best-supported model**: `SmolLM2-360M-Instruct` (360M params, float32)
+**Two tracks available**:
+- **Ship**: `SmolLM2-360M-Instruct` (360M params, 6.62 tok/s on CPU)
+- **Stretch**: `Qwen2.5-1.5B-Instruct` (1.5B params, 3.9 tok/s on CPU)
+
+Run with `--model models/qwen2.5-1.5b` to use the Qwen track.
 
 ## Hardware Constraints
 
@@ -57,7 +61,7 @@ For long training runs: `nohup python scripts/sft_train.py > outputs/sft/train.l
 | DPO training | ⚠️ Synthetic data | Uses truncated correct answers — real preference pairs needed |
 | Evaluation | ✅ Script ready | Regex-based answer extraction, accuracy + speed metrics |
 | GGUF export | 📋 Guide only | Manual llama.cpp conversion; adapter merge not automated |
-| Qwen2.5-1.5B track | ⏳ Planned | Next upgrade candidate if CPU training remains tolerable |
+| Qwen2.5-1.5B track | ✅ Benchmark complete | 3.9 tok/s on CPU; training feasibility TBD |
 
 ## Project Structure
 
@@ -94,7 +98,7 @@ micro-reasoner/
 - Full SFT training run (~18h on CPU, or overnight nohup)
 - Real preference data (UltraFeedback subset or manually filtered pairs)
 - DPO with real chosen/rejected pairs
-- Qwen2.5-1.5B-Instruct track
+- Qwen2.5-1.5B-Instruct track (training feasibility & LoRA SFT)
 - GGUF export with automatic adapter merging
 
 ## License

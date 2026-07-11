@@ -1,0 +1,15 @@
+{
+  "metrics": {
+    "model": "Qwen2.5-1.5B-Instruct",
+    "num_prompts": 3,
+    "avg_latency_sec": 25.37,
+    "avg_tokens_per_sec": 3.71,
+    "avg_output_length": 97.0,
+    "device": "cpu"
+  },
+  "results": [
+    {"prompt": "What is 15 * 7?", "tokens": 36, "time_sec": 10.94, "tokens_per_sec": 3.29},
+    {"prompt": "Solve for x: 2x + 5 = 13", "tokens": 127, "time_sec": 32.90, "tokens_per_sec": 3.86},
+    {"prompt": "If a train travels 60 miles per hour, how far does it go in 45 minutes?", "tokens": 128, "time_sec": 32.28, "tokens_per_sec": 3.97}
+  ]
+}

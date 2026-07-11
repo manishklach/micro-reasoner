@@ -15,9 +15,36 @@ SFT_DIR = OUTPUTS_DIR / "sft"
 DPO_DIR = OUTPUTS_DIR / "dpo"
 QUANTIZED_DIR = OUTPUTS_DIR / "quantized"
 
+# ---- Model paths ----
 DEFAULT_MODEL = str(MODELS_DIR / "smollm2-360m")
+QWEN_MODEL = str(MODELS_DIR / "qwen2.5-1.5b")
+
+# ---- Data paths ----
 DEFAULT_SFT_DATA = str(PROCESSED_DIR / "sft_train.parquet")
 DEFAULT_EVAL_DATA = str(PROCESSED_DIR / "sft_eval.parquet")
+DEFAULT_EVAL_PROMPTS = str(EVAL_DIR / "eval_prompts.json")
+DEFAULT_DPO_DATA = str(PROCESSED_DIR / "dpo_pairs_ultrafeedback.parquet")
+
+# ---- Output paths ----
 DEFAULT_SFT_OUTPUT = str(SFT_DIR)
 DEFAULT_DPO_OUTPUT = str(DPO_DIR)
-DEFAULT_EVAL_PROMPTS = str(EVAL_DIR / "eval_prompts.json")
+
+# ---- Chat templates ----
+CHAT_TEMPLATES = {
+    "smollm2": {
+        "user_prefix": "<|user|>\n",
+        "user_suffix": "\n<|assistant|>\n",
+        "assistant_suffix": "</s>",
+    },
+    "qwen2.5": {
+        "user_prefix": "<|im_start|>user\n",
+        "user_suffix": "<|im_end|>\n<|im_start|>assistant\n",
+        "assistant_suffix": "<|im_end|>",
+    },
+}
+
+def get_chat_template(model_name_or_path):
+    name = Path(model_name_or_path).name.lower()
+    if "qwen" in name:
+        return CHAT_TEMPLATES["qwen2.5"]
+    return CHAT_TEMPLATES["smollm2"]
