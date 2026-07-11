@@ -11,7 +11,7 @@ from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import LoraConfig, get_peft_model, PeftModel, TaskType
 from trl import DPOTrainer, DPOConfig
-from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_SFT_OUTPUT, DEFAULT_DPO_OUTPUT
+from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_SFT_OUTPUT, DEFAULT_DPO_OUTPUT, get_chat_template
 
 def main():
     parser = argparse.ArgumentParser(description="DPO preference tuning")
@@ -50,8 +50,9 @@ def main():
     model = get_peft_model(model, lora_cfg)
     model.print_trainable_parameters()
 
+    tmpl = get_chat_template(args.model)
+
     if args.dataset == "synthetic":
-        # Legacy synthetic mode: creates preference pairs by truncating answers
         print("WARNING: Using synthetic preference data (truncated correct answers).")
         print("Use --dataset ultrafeedback or orca_dpo_pairs for real data.")
         from datasets import load_dataset as ld
@@ -59,15 +60,14 @@ def main():
         raw = raw.select(range(min(args.max_samples, len(raw))))
 
         def build_preference(example):
-            prompt = f"<|user|>\n{example['instruction']}\n<|assistant|>\n"
+            prompt = f"{tmpl['user_prefix']}{example['instruction']}{tmpl['user_suffix']}"
             resp = example['response']
             chosen = resp
             rejected = resp[:len(resp)//2] + "[incomplete]"
-            return {"prompt": prompt, "chosen": chosen + "</s>", "rejected": rejected + "</s>"}
+            return {"prompt": prompt, "chosen": chosen + tmpl['assistant_suffix'], "rejected": rejected + tmpl['assistant_suffix']}
 
         dpo_data = raw.map(build_preference, remove_columns=raw.column_names)
     else:
-        # Real preference data
         cache_path = PROJECT_ROOT / "data" / "processed" / f"dpo_pairs_{args.dataset}.parquet"
         if cache_path.exists():
             print(f"Loading cached DPO data from {cache_path}...")
@@ -85,9 +85,9 @@ def main():
                 chosen = example["chosen"]
                 rejected = example["rejected"]
                 return {
-                    "prompt": f"<|user|>\n{prompt}\n<|assistant|>\n",
-                    "chosen": f"{chosen}</s>",
-                    "rejected": f"{rejected}</s>",
+                    "prompt": f"{tmpl['user_prefix']}{prompt}{tmpl['user_suffix']}",
+                    "chosen": f"{chosen}{tmpl['assistant_suffix']}",
+                    "rejected": f"{rejected}{tmpl['assistant_suffix']}",
                 }
             dpo_data = ds.map(format_row, remove_columns=ds.column_names)
 

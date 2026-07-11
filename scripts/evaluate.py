@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
-from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_EVAL_PROMPTS
+from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_EVAL_PROMPTS, get_chat_template
 
 def extract_answer(text):
     """Extract final numeric answer from GSM8K-style response."""
@@ -28,7 +28,7 @@ def extract_answer(text):
             return m.group(1)
     return None
 
-def evaluate(prompts, model, tokenizer, max_tokens=256, temperature=0.0):
+def evaluate(prompts, model, tokenizer, max_tokens=256, temperature=0.0, chat_tmpl=None):
     results = []
     correct = 0
     total_gen_tokens = 0
@@ -40,7 +40,7 @@ def evaluate(prompts, model, tokenizer, max_tokens=256, temperature=0.0):
         reference = item.get("reference", "")
         ref_answer = extract_answer(reference)
 
-        text = f"<|user|>\n{prompt}\n<|assistant|>\n"
+        text = f"{chat_tmpl['user_prefix']}{prompt}{chat_tmpl['user_suffix']}"
         inputs = tokenizer(text, return_tensors="pt")
 
         t0 = time.time()
@@ -123,7 +123,8 @@ def main():
     prompts = all_prompts[:args.max_prompts]
     print(f"Evaluating on {len(prompts)} prompts...")
 
-    results = evaluate(prompts, model, tokenizer, args.max_tokens)
+    tmpl = get_chat_template(args.adapter if args.adapter else args.model)
+    results = evaluate(prompts, model, tokenizer, args.max_tokens, chat_tmpl=tmpl)
 
     label = Path(args.adapter).parent.name if args.adapter else "baseline"
     out_file = output_dir / f"eval_{label}.json"

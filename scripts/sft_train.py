@@ -9,7 +9,7 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 from peft import LoraConfig, get_peft_model, TaskType
-from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_SFT_DATA, DEFAULT_EVAL_DATA, DEFAULT_SFT_OUTPUT
+from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_SFT_DATA, DEFAULT_EVAL_DATA, DEFAULT_SFT_OUTPUT, get_chat_template
 
 def main():
     parser = argparse.ArgumentParser(description="LoRA SFT training")
@@ -67,10 +67,12 @@ def main():
         raw_eval = load_dataset("parquet", data_files={"eval": args.eval_data}, split="eval")
         print(f"Eval samples: {len(raw_eval)}")
 
+    tmpl = get_chat_template(args.model)
+
     def format_and_tokenize(examples):
         texts = []
         for inst, resp in zip(examples["instruction"], examples["response"]):
-            text = f"<|user|>\n{inst}\n<|assistant|>\n{resp}</s>"
+            text = f"{tmpl['user_prefix']}{inst}{tmpl['user_suffix']}{resp}{tmpl['assistant_suffix']}"
             texts.append(text)
         tokenized = tokenizer(texts, truncation=True, padding=False, max_length=512)
         tokenized["labels"] = tokenized["input_ids"].copy()

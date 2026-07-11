@@ -7,7 +7,7 @@ import argparse, json, time, torch, sys
 from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
-from config import PROJECT_ROOT, DEFAULT_MODEL
+from config import PROJECT_ROOT, DEFAULT_MODEL, get_chat_template
 
 def main():
     parser = argparse.ArgumentParser(description="Local model inference")
@@ -30,9 +30,11 @@ def main():
             print(f"Loaded adapter from {args.adapter}")
     model.eval()
 
+    tmpl = get_chat_template(args.model)
+
     if args.prompt:
         single = args.prompt
-        text = f"<|user|>\n{single}\n<|assistant|>\n"
+        text = f"{tmpl['user_prefix']}{single}{tmpl['user_suffix']}"
         inputs = tokenizer(text, return_tensors="pt")
         t0 = time.time()
         with torch.no_grad():
@@ -51,7 +53,7 @@ def main():
         except EOFError:
             break
 
-        text = f"<|user|>\n{prompt}\n<|assistant|>\n"
+        text = f"{tmpl['user_prefix']}{prompt}{tmpl['user_suffix']}"
         inputs = tokenizer(text, return_tensors="pt")
 
         t0 = time.time()

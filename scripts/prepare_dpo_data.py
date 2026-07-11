@@ -8,24 +8,7 @@ Usage:
 import os, argparse
 from pathlib import Path
 from datasets import load_dataset
-from config import PROJECT_ROOT
-
-def format_smollm2(example):
-    prompt = example.get("prompt") or example.get("question", "")
-    chosen = example.get("chosen") or example.get("chosen", "")
-    rejected = example.get("rejected") or example.get("rejected", "")
-
-    # Format with SmolLM2 chat template
-    formatted_prompt = f"<|user|>\n{prompt}\n<|assistant|>\n"
-    formatted_chosen = f"{chosen}</s>"
-    formatted_rejected = f"{rejected}</s>"
-
-    return {
-        "prompt": formatted_prompt,
-        "chosen": formatted_chosen,
-        "rejected": formatted_rejected,
-        "source": args.dataset,
-    }
+from config import PROJECT_ROOT, get_chat_template
 
 def main():
     parser = argparse.ArgumentParser(description="Prepare DPO preference data")
@@ -55,14 +38,15 @@ def main():
 
     print(f"Loaded {len(ds)} examples from {source}")
 
+    tmpl = get_chat_template("smollm2-360m")
     def format_row(example):
         prompt = example["prompt"]
         chosen = example["chosen"]
         rejected = example["rejected"]
         return {
-            "prompt": f"<|user|>\n{prompt}\n<|assistant|>\n",
-            "chosen": f"{chosen}</s>",
-            "rejected": f"{rejected}</s>",
+            "prompt": f"{tmpl['user_prefix']}{prompt}{tmpl['user_suffix']}",
+            "chosen": f"{chosen}{tmpl['assistant_suffix']}",
+            "rejected": f"{rejected}{tmpl['assistant_suffix']}",
             "source": source,
         }
 

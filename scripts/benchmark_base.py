@@ -5,7 +5,7 @@ import json, time, argparse
 from pathlib import Path
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_EVAL_PROMPTS
+from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_EVAL_PROMPTS, get_chat_template
 
 def main():
     parser = argparse.ArgumentParser(description="Baseline inference benchmark")
@@ -45,9 +45,11 @@ def main():
     total_tokens = 0
     total_time = 0
 
+    tmpl = get_chat_template(args.model)
+
     for i, item in enumerate(eval_prompts):
         prompt = item["prompt"]
-        text = f"<|user|>\n{prompt}\n<|assistant|>\n"
+        text = f"{tmpl['user_prefix']}{prompt}{tmpl['user_suffix']}"
         inputs = tokenizer(text, return_tensors="pt")
 
         start = time.time()
