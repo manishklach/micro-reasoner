@@ -16,8 +16,14 @@ models/*/model.safetensors
 models/*/*.bin
 models/*/pytorch_model*.bin
 
-# Outputs (keep only gitkeep)
-outputs/**/*/
+# Output weights (too large for git)
+outputs/**/adapter_model.safetensors
+outputs/**/optimizer.pt
+outputs/**/training_args.bin
+# Track benchmark JSONs and READMEs
+!outputs/benchmarks/
+!outputs/benchmarks/*.json
+!outputs/**/README.md
 
 # OS
 .DS_Store

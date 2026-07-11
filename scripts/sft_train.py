@@ -1,6 +1,5 @@
-import json
-import time
-import os
+import json, time, argparse
+from pathlib import Path
 from datasets import load_dataset
 from transformers import (
     AutoModelForCausalLM,
@@ -10,107 +9,137 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 from peft import LoraConfig, get_peft_model, TaskType
+from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_SFT_DATA, DEFAULT_EVAL_DATA, DEFAULT_SFT_OUTPUT
 
-os.chdir("/home/manishkl/single-gpu-reasoner")
-os.makedirs("outputs/sft", exist_ok=True)
+def main():
+    parser = argparse.ArgumentParser(description="LoRA SFT training")
+    parser.add_argument("--model", default=DEFAULT_MODEL, help="Base model path")
+    parser.add_argument("--train-data", default=DEFAULT_SFT_DATA, help="Training data (parquet)")
+    parser.add_argument("--eval-data", default=DEFAULT_EVAL_DATA, help="Eval data (parquet)")
+    parser.add_argument("--output-dir", default=DEFAULT_SFT_OUTPUT, help="Output directory")
+    parser.add_argument("--max-samples", type=int, default=500, help="Max training samples (0 = all)")
+    parser.add_argument("--max-steps", type=int, default=50, help="Max training steps")
+    parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate")
+    parser.add_argument("--batch-size", type=int, default=1, help="Per-device batch size")
+    parser.add_argument("--grad-accum", type=int, default=8, help="Gradient accumulation steps")
+    args = parser.parse_args()
 
-model_path = "models/smollm2-360m"
-output_dir = "outputs/sft"
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-print("Loading tokenizer...")
-tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-tokenizer.pad_token = tokenizer.eos_token
-tokenizer.padding_side = "right"
+    print("Loading tokenizer...")
+    tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"
 
-print("Loading model (float32, CPU)...")
-t0 = time.time()
-model = AutoModelForCausalLM.from_pretrained(
-    model_path,
-    trust_remote_code=True,
-    low_cpu_mem_usage=True,
-)
-print(f"Model loaded in {time.time()-t0:.1f}s, params: {model.num_parameters()/1e6:.1f}M")
+    print("Loading model (float32, CPU)...")
+    t0 = time.time()
+    model = AutoModelForCausalLM.from_pretrained(
+        args.model,
+        trust_remote_code=True,
+        low_cpu_mem_usage=True,
+    )
+    print(f"Model loaded in {time.time()-t0:.1f}s, params: {model.num_parameters()/1e6:.1f}M")
 
-lora_config = LoraConfig(
-    r=8,
-    lora_alpha=16,
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
-    lora_dropout=0.05,
-    bias="none",
-    task_type=TaskType.CAUSAL_LM,
-)
+    lora_config = LoraConfig(
+        r=8,
+        lora_alpha=16,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+        lora_dropout=0.05,
+        bias="none",
+        task_type=TaskType.CAUSAL_LM,
+    )
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
 
-model = get_peft_model(model, lora_config)
-model.print_trainable_parameters()
+    print("Loading training data...")
+    data_files = {"train": args.train_data}
+    if args.eval_data:
+        data_files["eval"] = args.eval_data
 
-print("Loading training data (subset for demo)...")
-train_data = load_dataset("parquet", data_files="data/processed/sft_train.parquet", split="train").select(range(500))
-eval_data = load_dataset("parquet", data_files="data/processed/sft_eval.parquet", split="train")
+    raw_train = load_dataset("parquet", data_files={"train": args.train_data}, split="train")
+    if args.max_samples and args.max_samples > 0:
+        raw_train = raw_train.select(range(min(args.max_samples, len(raw_train))))
+    print(f"Train samples: {len(raw_train)}")
 
-def format_and_tokenize(examples):
-    texts = []
-    for inst, resp in zip(examples["instruction"], examples["response"]):
-        text = f"<|user|>\n{inst}\n<|assistant|>\n{resp}</s>"
-        texts.append(text)
-    tokenized = tokenizer(texts, truncation=True, padding=False, max_length=512)
-    tokenized["labels"] = tokenized["input_ids"].copy()
-    return tokenized
+    raw_eval = None
+    if args.eval_data:
+        raw_eval = load_dataset("parquet", data_files={"eval": args.eval_data}, split="eval")
+        print(f"Eval samples: {len(raw_eval)}")
 
-print("Tokenizing...")
-train_tok = train_data.map(format_and_tokenize, batched=True, remove_columns=train_data.column_names, num_proc=2)
-eval_tok = eval_data.map(format_and_tokenize, batched=True, remove_columns=eval_data.column_names, num_proc=2)
+    def format_and_tokenize(examples):
+        texts = []
+        for inst, resp in zip(examples["instruction"], examples["response"]):
+            text = f"<|user|>\n{inst}\n<|assistant|>\n{resp}</s>"
+            texts.append(text)
+        tokenized = tokenizer(texts, truncation=True, padding=False, max_length=512)
+        tokenized["labels"] = tokenized["input_ids"].copy()
+        return tokenized
 
-training_args = TrainingArguments(
-    output_dir=output_dir,
-    per_device_train_batch_size=1,
-    per_device_eval_batch_size=1,
-    gradient_accumulation_steps=8,
-    num_train_epochs=1,
-    max_steps=50,
-    logging_steps=1,
-    save_strategy="no",
-    eval_strategy="no",
-    save_total_limit=2,
-    remove_unused_columns=False,
-    dataloader_num_workers=0,
-    dataloader_pin_memory=False,
-    learning_rate=2e-4,
-    warmup_steps=20,
-    lr_scheduler_type="cosine",
-    report_to=[],
-    optim="adamw_torch",
-    max_grad_norm=0.3,
-    gradient_checkpointing=False,
-)
+    print("Tokenizing...")
+    train_tok = raw_train.map(format_and_tokenize, batched=True, remove_columns=raw_train.column_names, num_proc=2)
+    eval_tok = None
+    if raw_eval:
+        eval_tok = raw_eval.map(format_and_tokenize, batched=True, remove_columns=raw_eval.column_names, num_proc=2)
 
-data_collator = DataCollatorForSeq2Seq(tokenizer, pad_to_multiple_of=8)
+    training_args = TrainingArguments(
+        output_dir=str(output_dir),
+        per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=1,
+        gradient_accumulation_steps=args.grad_accum,
+        num_train_epochs=1,
+        max_steps=args.max_steps,
+        logging_steps=1,
+        save_strategy="no",
+        eval_strategy="no" if eval_tok is None else "steps",
+        eval_steps=50 if eval_tok else None,
+        save_total_limit=2,
+        remove_unused_columns=False,
+        dataloader_num_workers=0,
+        dataloader_pin_memory=False,
+        learning_rate=args.lr,
+        warmup_steps=20,
+        lr_scheduler_type="cosine",
+        report_to=[],
+        optim="adamw_torch",
+        max_grad_norm=0.3,
+        gradient_checkpointing=False,
+    )
 
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_tok,
-    eval_dataset=eval_tok.select(range(50)),
-    data_collator=data_collator,
-    processing_class=tokenizer,
-)
+    data_collator = DataCollatorForSeq2Seq(tokenizer, pad_to_multiple_of=8)
+    eval_dataset = eval_tok.select(range(50)) if eval_tok else None
 
-print("Starting SFT training...")
-t0 = time.time()
-trainer.train()
-total_time = time.time() - t0
-print(f"Training complete in {total_time:.1f}s")
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_tok,
+        eval_dataset=eval_dataset,
+        data_collator=data_collator,
+        processing_class=tokenizer,
+    )
 
-model.save_pretrained(f"{output_dir}/final_adapter")
-tokenizer.save_pretrained(f"{output_dir}/final_adapter")
+    print("Starting SFT training...")
+    t0 = time.time()
+    trainer.train()
+    total_time = time.time() - t0
+    print(f"Training complete in {total_time:.1f}s")
 
-summary = {
-    "model": "SmolLM2-360M-Instruct",
-    "train_samples": len(train_tok),
-    "eval_samples": len(eval_tok),
-    "train_time_sec": round(total_time, 1),
-    "trainable_params": model.num_parameters(only_trainable=True),
-    "total_params": model.num_parameters(),
-}
-with open(f"{output_dir}/training_summary.json", "w") as f:
-    json.dump(summary, f, indent=2)
-print(f"Summary: {json.dumps(summary, indent=2)}")
+    model.save_pretrained(str(output_dir / "final_adapter"))
+    tokenizer.save_pretrained(str(output_dir / "final_adapter"))
+
+    summary = {
+        "model": Path(args.model).name,
+        "train_samples": len(train_tok),
+        "eval_samples": len(eval_tok) if eval_tok else 0,
+        "train_time_sec": round(total_time, 1),
+        "trainable_params": model.num_parameters(only_trainable=True),
+        "total_params": model.num_parameters(),
+        "max_steps": args.max_steps,
+        "learning_rate": args.lr,
+    }
+    with open(str(output_dir / "training_summary.json"), "w") as f:
+        json.dump(summary, f, indent=2)
+    print(f"Summary: {json.dumps(summary, indent=2)}")
+
+if __name__ == "__main__":
+    main()

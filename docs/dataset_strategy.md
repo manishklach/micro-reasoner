@@ -1,24 +1,18 @@
 # Dataset Strategy
 
-## SFT Data: GSM8K + OpenThoughts (reasoning subset)
-- **GSM8K**: 8.5K math word problems with step-by-step solutions
-- **OpenThoughts**: ~10K high-quality reasoning traces
-- Format: instruction + chain-of-thought + answer
-- Train/val split: 90/10
+## Current: GSM8K (Math Reasoning)
+- **Source**: `openai/gsm8k` — 8.5K grade-school math word problems with step-by-step solutions
+- **SFT split**: 6,725 train / 748 eval (90/10 split)
+- **Eval**: 100 held-out GSM8K test prompts with reference answers
+- **Format**: `instruction` (question) + `response` (answer with chain-of-thought)
+- **Storage**: Parquet in `data/processed/`
 
-## Preference Data: UltraFeedback (subset)
-- 10K preference pairs with chosen/rejected responses
-- Focus on reasoning and instruction-following categories
-- Fields: prompt, chosen, rejected, source
-
-## Evaluation Set: 100 held-out prompts
-- 40 math/reasoning
-- 20 instruction following
-- 20 code/debugging
-- 10 safety/refusal
-- 10 long-form structured
+## Planned
+- **Preference data**: Real DPO pairs from UltraFeedback or manually filtered self-generated pairs
+- **Additional domains**: Code, instruction-following, safety/refusal
 
 ## Data Processing
-- All datasets loaded via HuggingFace datasets
-- Preprocessing: tokenize, format with chat template, filter length
-- Saved as Parquet in data/processed/
+- Loaded via HuggingFace `datasets`
+- Formatted with SmolLM2 chat template (`<|user|>`, `<|assistant|>`)
+- Tokenized to max 512 tokens
+- Saved as Parquet for fast loading

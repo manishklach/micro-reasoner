@@ -1,46 +1,61 @@
-import os
+import os, argparse
+from pathlib import Path
 os.environ['HF_HUB_DISABLE_HF_TRANSFER'] = '1'
-from datasets import load_dataset, Dataset, concatenate_datasets
+from datasets import load_dataset
 import json
+from config import PROJECT_ROOT
 
-os.makedirs('/home/manishkl/single-gpu-reasoner/data/processed', exist_ok=True)
-os.makedirs('/home/manishkl/single-gpu-reasoner/data/eval', exist_ok=True)
+def main():
+    parser = argparse.ArgumentParser(description="Download and prepare training/eval data")
+    parser.add_argument("--output-dir", default=str(PROJECT_ROOT / "data"), help="Output data directory")
+    parser.add_argument("--max-eval", type=int, default=100, help="Number of eval prompts to extract")
+    parser.add_argument("--dataset", default="gsm8k", choices=["gsm8k"], help="Dataset to prepare")
+    args = parser.parse_args()
 
-print("Loading GSM8K...")
-gsm8k = load_dataset('openai/gsm8k', 'main', split='train')
-print(f"GSM8K train: {len(gsm8k)} examples")
+    output_dir = Path(args.output_dir)
+    processed_dir = output_dir / "processed"
+    eval_dir = output_dir / "eval"
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    eval_dir.mkdir(parents=True, exist_ok=True)
 
-def format_gsm8k(example):
-    return {
-        'instruction': example['question'],
-        'response': example['answer'],
-        'source': 'gsm8k'
-    }
+    print(f"Loading {args.dataset}...")
+    gsm8k = load_dataset('openai/gsm8k', 'main', split='train')
+    print(f"GSM8K train: {len(gsm8k)} examples")
 
-sft_data = gsm8k.map(format_gsm8k, remove_columns=gsm8k.column_names)
-split = sft_data.train_test_split(test_size=0.1, seed=42)
-train_data = split['train']
-eval_data = split['test']
+    def format_gsm8k(example):
+        return {
+            'instruction': example['question'],
+            'response': example['answer'],
+            'source': 'gsm8k'
+        }
 
-print(f"SFT train: {len(train_data)}, eval: {len(eval_data)}")
+    sft_data = gsm8k.map(format_gsm8k, remove_columns=gsm8k.column_names)
+    split = sft_data.train_test_split(test_size=0.1, seed=42)
+    train_data = split['train']
+    eval_data = split['test']
 
-train_data.to_parquet('/home/manishkl/single-gpu-reasoner/data/processed/sft_train.parquet')
-eval_data.to_parquet('/home/manishkl/single-gpu-reasoner/data/processed/sft_eval.parquet')
+    print(f"SFT train: {len(train_data)}, eval: {len(eval_data)}")
 
-print("Loading GSM8K test set for evaluation...")
-gsm8k_test = load_dataset('openai/gsm8k', 'main', split='test')
-eval_prompts = gsm8k_test.select(range(min(100, len(gsm8k_test))))
+    train_data.to_parquet(str(processed_dir / "sft_train.parquet"))
+    eval_data.to_parquet(str(processed_dir / "sft_eval.parquet"))
 
-eval_formatted = []
-for ex in eval_prompts:
-    eval_formatted.append({
-        'prompt': ex['question'],
-        'reference': ex['answer'],
-        'category': 'math/reasoning'
-    })
+    print("Loading GSM8K test set for evaluation...")
+    gsm8k_test = load_dataset('openai/gsm8k', 'main', split='test')
+    eval_prompts = gsm8k_test.select(range(min(args.max_eval, len(gsm8k_test))))
 
-with open('/home/manishkl/single-gpu-reasoner/data/eval/eval_prompts.json', 'w') as f:
-    json.dump(eval_formatted, f, indent=2)
+    eval_formatted = []
+    for ex in eval_prompts:
+        eval_formatted.append({
+            'prompt': ex['question'],
+            'reference': ex['answer'],
+            'category': 'math/reasoning'
+        })
 
-print(f"Evaluation set: {len(eval_formatted)} prompts saved")
-print("Data preparation complete!")
+    with open(str(eval_dir / "eval_prompts.json"), 'w') as f:
+        json.dump(eval_formatted, f, indent=2)
+
+    print(f"Evaluation set: {len(eval_formatted)} prompts saved")
+    print("Data preparation complete!")
+
+if __name__ == "__main__":
+    main()
