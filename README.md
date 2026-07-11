@@ -1,5 +1,12 @@
 # micro-reasoner
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.13-orange)](https://pytorch.org/)
+[![Platform](https://img.shields.io/badge/Platform-CPU%20(WSL2)-lightgrey)](https://learn.microsoft.com/en-us/windows/wsl/)
+[![Model](https://img.shields.io/badge/Model-SmolLM2--360M-green)](https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct)
+[![Last Commit](https://img.shields.io/github/last-commit/manishklach/micro-reasoner)](https://github.com/manishklach/micro-reasoner)
+
 **CPU-first reasoning-model lab** — train a small instruct model into a measurable reasoning assistant using SFT, lightweight preference tuning, and local deployment.
 
 **Current best-supported model**: `SmolLM2-360M-Instruct` (360M params, float32)

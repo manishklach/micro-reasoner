@@ -1,21 +1,30 @@
-import json, time, os, argparse
+"""DPO preference tuning with real preference data.
+Downloads UltraFeedback or Orca DPO pairs if not cached.
+
+Usage:
+  python scripts/dpo_train.py --max-steps 20
+  python scripts/dpo_train.py --dataset orca_dpo_pairs --max-samples 300 --max-steps 30
+"""
+import json, time, os, argparse, sys
 from pathlib import Path
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import LoraConfig, get_peft_model, PeftModel, TaskType
 from trl import DPOTrainer, DPOConfig
-from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_SFT_OUTPUT, DEFAULT_DPO_OUTPUT, DEFAULT_SFT_DATA
+from config import PROJECT_ROOT, DEFAULT_MODEL, DEFAULT_SFT_OUTPUT, DEFAULT_DPO_OUTPUT
 
 def main():
     parser = argparse.ArgumentParser(description="DPO preference tuning")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="Base model path")
-    parser.add_argument("--adapter", default=DEFAULT_SFT_OUTPUT + "/final_adapter", help="SFT adapter path")
-    parser.add_argument("--output-dir", default=DEFAULT_DPO_OUTPUT, help="Output directory")
-    parser.add_argument("--train-data", default=DEFAULT_SFT_DATA, help="Source data for synthetic pairs")
-    parser.add_argument("--max-samples", type=int, default=100, help="Number of DPO pairs")
-    parser.add_argument("--max-steps", type=int, default=20, help="Max training steps")
-    parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate")
-    parser.add_argument("--beta", type=float, default=0.1, help="DPO beta parameter")
+    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--adapter", default=None, help="SFT adapter path (optional)")
+    parser.add_argument("--output-dir", default=DEFAULT_DPO_OUTPUT)
+    parser.add_argument("--dataset", default="ultrafeedback",
+                        choices=["ultrafeedback", "orca_dpo_pairs", "synthetic"],
+                        help="Preference data source")
+    parser.add_argument("--max-samples", type=int, default=500)
+    parser.add_argument("--max-steps", type=int, default=20)
+    parser.add_argument("--lr", type=float, default=1e-5)
+    parser.add_argument("--beta", type=float, default=0.1)
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -24,13 +33,14 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
 
-    print("Loading base model...")
+    print(f"Loading base model from {args.model}...")
     model = AutoModelForCausalLM.from_pretrained(args.model, low_cpu_mem_usage=True)
 
-    adapter_path = Path(args.adapter)
-    if adapter_path.exists() and (adapter_path / "adapter_config.json").exists():
-        model = PeftModel.from_pretrained(model, str(adapter_path))
-        print(f"Loaded SFT adapter from {adapter_path}")
+    if args.adapter:
+        adapter_path = Path(args.adapter)
+        if adapter_path.exists() and (adapter_path / "adapter_config.json").exists():
+            model = PeftModel.from_pretrained(model, str(adapter_path))
+            print(f"Loaded SFT adapter from {args.adapter}")
 
     lora_cfg = LoraConfig(
         r=8, lora_alpha=16,
@@ -40,20 +50,48 @@ def main():
     model = get_peft_model(model, lora_cfg)
     model.print_trainable_parameters()
 
-    # NOTE: Preference data is currently synthetic (truncated correct answers).
-    # This is a placeholder until real preference data (e.g. UltraFeedback) is added.
-    print("Loading/simulating preference data (SYNTHETIC - see warning above)...")
-    raw = load_dataset("parquet", data_files={"train": args.train_data}, split="train")
-    raw = raw.select(range(min(args.max_samples, len(raw))))
+    if args.dataset == "synthetic":
+        # Legacy synthetic mode: creates preference pairs by truncating answers
+        print("WARNING: Using synthetic preference data (truncated correct answers).")
+        print("Use --dataset ultrafeedback or orca_dpo_pairs for real data.")
+        from datasets import load_dataset as ld
+        raw = ld("parquet", data_files={"train": str(PROJECT_ROOT / "data/processed/sft_train.parquet")}, split="train")
+        raw = raw.select(range(min(args.max_samples, len(raw))))
 
-    def build_preference(example):
-        prompt = f"<|user|>\n{example['instruction']}\n<|assistant|>\n"
-        resp = example['response']
-        chosen = resp
-        rejected = resp[:len(resp)//2] + "[incomplete]"
-        return {"prompt": prompt, "chosen": chosen + "</s>", "rejected": rejected + "</s>"}
+        def build_preference(example):
+            prompt = f"<|user|>\n{example['instruction']}\n<|assistant|>\n"
+            resp = example['response']
+            chosen = resp
+            rejected = resp[:len(resp)//2] + "[incomplete]"
+            return {"prompt": prompt, "chosen": chosen + "</s>", "rejected": rejected + "</s>"}
 
-    dpo_data = raw.map(build_preference, remove_columns=raw.column_names)
+        dpo_data = raw.map(build_preference, remove_columns=raw.column_names)
+    else:
+        # Real preference data
+        cache_path = PROJECT_ROOT / "data" / "processed" / f"dpo_pairs_{args.dataset}.parquet"
+        if cache_path.exists():
+            print(f"Loading cached DPO data from {cache_path}...")
+            dpo_data = load_dataset("parquet", data_files={"train": str(cache_path)}, split="train")
+        else:
+            print(f"Downloading {args.dataset} preference data...")
+            if args.dataset == "ultrafeedback":
+                ds = load_dataset("HuggingFaceH4/ultrafeedback_binarized", split="train")
+            elif args.dataset == "orca_dpo_pairs":
+                ds = load_dataset("Intel/orca_dpo_pairs", split="train")
+            ds = ds.select(range(min(args.max_samples, len(ds))))
+
+            def format_row(example):
+                prompt = example["prompt"]
+                chosen = example["chosen"]
+                rejected = example["rejected"]
+                return {
+                    "prompt": f"<|user|>\n{prompt}\n<|assistant|>\n",
+                    "chosen": f"{chosen}</s>",
+                    "rejected": f"{rejected}</s>",
+                }
+            dpo_data = ds.map(format_row, remove_columns=ds.column_names)
+
+        print(f"Loaded {len(dpo_data)} preference pairs from {args.dataset}")
 
     training_args = DPOConfig(
         output_dir=str(output_dir),
@@ -79,25 +117,25 @@ def main():
         tokenizer=tokenizer,
     )
 
-    print("Starting DPO training...")
+    print(f"Starting DPO training with {args.dataset} data ({args.max_steps} steps)...")
     t0 = time.time()
     trainer.train()
-    print(f"DPO done in {time.time()-t0:.1f}s")
+    elapsed = time.time() - t0
+    print(f"DPO done in {elapsed:.1f}s")
 
     model.save_pretrained(str(output_dir / "final_adapter"))
     tokenizer.save_pretrained(str(output_dir / "final_adapter"))
 
     summary = {
         "model": Path(args.model).name,
+        "dataset": args.dataset,
         "num_pairs": len(dpo_data),
-        "train_time_sec": round(time.time() - t0, 1),
+        "train_time_sec": round(elapsed, 1),
         "max_steps": args.max_steps,
-        "data_source": f"synthetic (from {Path(args.train_data).name})",
-        "warning": "Preference pairs are synthetic (truncated answers). Replace with real data for production use."
     }
     with open(str(output_dir / "dpo_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
-    print("Saved!")
+    print(f"Summary: {json.dumps(summary, indent=2)}")
 
 if __name__ == "__main__":
     main()
