@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# HuggingFace cache
+.cache/
+wget-log*
+**/.cache/
+
+# Model weights (large binary files)
+models/*/model.safetensors
+models/*/*.bin
+models/*/pytorch_model*.bin
+
+# Outputs (keep only gitkeep)
+outputs/**/*/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Notebook checkpoints
+.ipynb_checkpoints/
