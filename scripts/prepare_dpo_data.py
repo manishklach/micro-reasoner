@@ -42,10 +42,9 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if args.dataset == "ultrafeedback":
-        print("Loading HuggingFaceH4/ultrafeedback_binarized...")
-        ds = load_dataset("HuggingFaceH4/ultrafeedback_binarized", split="train")
+        print("Loading HuggingFaceH4/ultrafeedback_binarized (train_prefs split)...")
+        ds = load_dataset("HuggingFaceH4/ultrafeedback_binarized", split="train_prefs")
         ds = ds.select(range(min(args.max_samples, len(ds))))
-        ds = ds.rename_columns({"prompt": "prompt", "chosen": "chosen", "rejected": "rejected"})
         source = "ultrafeedback"
 
     elif args.dataset == "orca_dpo_pairs":

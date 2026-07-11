@@ -75,7 +75,7 @@ def main():
         else:
             print(f"Downloading {args.dataset} preference data...")
             if args.dataset == "ultrafeedback":
-                ds = load_dataset("HuggingFaceH4/ultrafeedback_binarized", split="train")
+                ds = load_dataset("HuggingFaceH4/ultrafeedback_binarized", split="train_prefs")
             elif args.dataset == "orca_dpo_pairs":
                 ds = load_dataset("Intel/orca_dpo_pairs", split="train")
             ds = ds.select(range(min(args.max_samples, len(ds))))
