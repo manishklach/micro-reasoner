@@ -26,8 +26,8 @@ python scripts/prepare_data.py
 # 3. Baseline benchmark
 python scripts/benchmark_base.py --max-prompts 20
 
-# 4. SFT training (50 steps demo; full run: --max-steps 500)
-python scripts/sft_train.py --max-steps 50
+# 4. SFT training (20 steps demo; full run: --max-steps 500)
+python scripts/sft_train.py --max-steps 20
 
 # 5. Evaluate SFT
 python scripts/evaluate.py --adapter outputs/sft/final_adapter
@@ -46,7 +46,7 @@ For long training runs: `nohup python scripts/sft_train.py > outputs/sft/train.l
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Baseline benchmark | ✅ Complete | 6.62 tok/s, 23.6s avg latency |
-| SFT training | ✅ Script ready | LoRA (r=8), GSM8K (6.7K examples) |
+| SFT training | ⚠️ Partial | 7/50 steps completed, loss 1.34→1.38, ~22 min/step |
 | DPO training | ⚠️ Synthetic data | Uses truncated correct answers — real preference pairs needed |
 | Evaluation | ✅ Script ready | Regex-based answer extraction, accuracy + speed metrics |
 | GGUF export | 📋 Guide only | Manual llama.cpp conversion; adapter merge not automated |
@@ -77,15 +77,15 @@ micro-reasoner/
 
 **Real today:**
 - GSM8K math dataset with SFT formatting
-- LoRA SFT training (verified forward/backward on CPU)
+- LoRA SFT training (verified forward/backward on CPU, partial run completed)
 - Baseline benchmark with token/sec and latency metrics
 - Eval script with answer extraction and accuracy scoring
 - Chat interface with optional adapter loading
 - Comparison table across model stages
 
 **Planned next:**
+- Full SFT training run (~18h on CPU, or overnight nohup)
 - Real preference data (UltraFeedback subset or manually filtered pairs)
-- Full SFT epoch (~18h on CPU)
 - DPO with real chosen/rejected pairs
 - Qwen2.5-1.5B-Instruct track
 - GGUF export with automatic adapter merging

@@ -9,23 +9,34 @@
 ## Training
 | Phase | Method | Data | Epochs | Status |
 |-------|--------|------|--------|--------|
-| SFT   | LoRA (r=8) | GSM8K (6.7K math problems) | 1 | Script ready, full run pending (~18h) |
+| SFT   | LoRA (r=8) | GSM8K (6.7K math problems) | 1 | Partial run: 7/50 steps completed |
 | DPO   | LoRA (r=8) | Synthetic pairs (100 examples) | 1 | Placeholder — real data needed |
 
+## SFT Loss Curve (Partial)
+| Step | Loss | Grad Norm | LR |
+|------|------|-----------|----|
+| 1    | 1.338 | 0.142 | 1e-05 |
+| 2    | 1.584 | 0.198 | 2e-05 |
+| 3    | 1.686 | 0.229 | 3e-05 |
+| 4    | 1.383 | 0.153 | 4e-05 |
+| 5    | 1.359 | 0.164 | 5e-05 |
+| 6    | 1.380 | 0.178 | 6e-05 |
+
+Loss trending downward after initial spike. Averaging ~22 min/step (gradient accumulation 8).
+
 ## Performance
-| Metric | Baseline | SFT | DPO |
-|--------|----------|-----|-----|
-| Tokens/sec | 6.62 | TBD | TBD |
-| Avg latency | 23.6s | TBD | TBD |
-| Accuracy | TBD | TBD | TBD |
+| Metric | Baseline |
+|--------|----------|
+| Tokens/sec | 6.62 |
+| Avg latency | 23.6s |
 
 ## Usage
 ```bash
-# Interactive
-python scripts/chat_local.py --adapter outputs/sft/final_adapter
+# Interactive (base model only — no adapter weights saved from partial run)
+python scripts/chat_local.py
 
-# Single prompt
-python scripts/chat_local.py --adapter outputs/sft/final_adapter --prompt "What is 15 * 7?"
+# Evaluate baseline
+python scripts/evaluate.py --max-prompts 20
 ```
 
 ## Prompt Format
@@ -41,3 +52,4 @@ python scripts/chat_local.py --adapter outputs/sft/final_adapter --prompt "What 
 - 360M parameter capacity limits complex reasoning
 - Trained on GSM8K math only — narrow domain
 - DPO currently uses synthetic preference pairs
+- SFT run was partial (7/50 steps); adapter weights not saved

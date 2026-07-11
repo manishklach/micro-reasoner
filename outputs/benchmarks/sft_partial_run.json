@@ -1,0 +1,19 @@
+{
+  "status": "partial_run",
+  "model": "SmolLM2-360M-Instruct",
+  "max_steps_configured": 50,
+  "steps_completed": 7,
+  "total_elapsed_sec": 9711,
+  "total_elapsed_str": "2h41m51s",
+  "avg_step_time_sec": 1306,
+  "learning_rate_schedule": "cosine (warmup 20 steps)",
+  "loss_curve": [
+    {"step": 1, "loss": 1.338, "grad_norm": 0.1418, "lr": 1e-05},
+    {"step": 2, "loss": 1.584, "grad_norm": 0.1977, "lr": 2e-05},
+    {"step": 3, "loss": 1.686, "grad_norm": 0.2287, "lr": 3e-05},
+    {"step": 4, "loss": 1.383, "grad_norm": 0.1529, "lr": 4e-05},
+    {"step": 5, "loss": 1.359, "grad_norm": 0.1639, "lr": 5e-05},
+    {"step": 6, "loss": 1.380, "grad_norm": 0.1782, "lr": 6e-05}
+  ],
+  "note": "Run interrupted at step 7/50. No adapter weights saved (save_strategy=no). Loss trending downward after initial spike."
+}
