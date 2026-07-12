@@ -106,6 +106,7 @@ def main():
         optim="adamw_torch",
         max_grad_norm=0.3,
         gradient_checkpointing=False,
+        use_cpu=True,
     )
 
     data_collator = DataCollatorForSeq2Seq(tokenizer, pad_to_multiple_of=8)

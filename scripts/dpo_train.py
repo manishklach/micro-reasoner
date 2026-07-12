@@ -97,16 +97,15 @@ def main():
         output_dir=str(output_dir),
         per_device_train_batch_size=1,
         max_length=512,
-        max_prompt_length=256,
         num_train_epochs=1,
         max_steps=args.max_steps,
         logging_steps=1,
         save_strategy="no",
         learning_rate=args.lr,
         report_to=[],
-        dataloader_pin_memory=False,
-        dataloader_num_workers=0,
         beta=args.beta,
+        use_cpu=True,
+        remove_unused_columns=False,
     )
 
     trainer = DPOTrainer(
@@ -114,7 +113,7 @@ def main():
         ref_model=None,
         args=training_args,
         train_dataset=dpo_data,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
     )
 
     print(f"Starting DPO training with {args.dataset} data ({args.max_steps} steps)...")

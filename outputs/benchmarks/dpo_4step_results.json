@@ -1,0 +1,14 @@
+{
+  "date": "2026-07-12",
+  "dataset": "ultrafeedback (50 samples, 500 total pairs)",
+  "model": "SmolLM2-360M-Instruct",
+  "max_steps": 5,
+  "steps_completed": 4,
+  "duration": "~47 min",
+  "avg_step_time": "~12 min",
+  "loss_trajectory": [0.6931, 0.6931, 0.6225, 0.6475],
+  "grad_norm_trajectory": [0, 3.698, 4.166, 4.227],
+  "rewards_margins": [0, 0, 0.1466, 0.09349],
+  "rewards_accuracies": [0, 0, 1, 1],
+  "notes": "DPO pipeline verified working end-to-end with real UltraFeedback preference data. Loss trending down from ~0.69 to ~0.65. Positive rewards margins by step 3. TRL 1.8.0 API changes required: tokenizer→processing_class, use_cpu=True, removed max_prompt_length."
+}
