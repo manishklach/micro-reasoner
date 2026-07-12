@@ -22,6 +22,7 @@ def main():
     parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate")
     parser.add_argument("--batch-size", type=int, default=1, help="Per-device batch size")
     parser.add_argument("--grad-accum", type=int, default=8, help="Gradient accumulation steps")
+    parser.add_argument("--save-steps", type=int, default=0, help="Save checkpoint every N steps (0 = no saving)")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -92,7 +93,8 @@ def main():
         num_train_epochs=1,
         max_steps=args.max_steps,
         logging_steps=1,
-        save_strategy="no",
+        save_strategy="no" if args.save_steps == 0 else "steps",
+        save_steps=args.save_steps,
         eval_strategy="no" if eval_tok is None else "steps",
         eval_steps=50 if eval_tok else None,
         save_total_limit=2,

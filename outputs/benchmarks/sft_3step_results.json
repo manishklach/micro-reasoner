@@ -1,0 +1,18 @@
+{
+  "status": "verified_working",
+  "model": "SmolLM2-360M-Instruct",
+  "max_steps": 3,
+  "train_samples": 100,
+  "eval_samples": 748,
+  "steps_completed": 3,
+  "total_time_sec": 5248,
+  "avg_step_time_sec": 1749,
+  "step_times_sec": [1948, 1768, 1718],
+  "loss_curve": [
+    {"step": 1, "loss": 1.463, "grad_norm": 0.1859, "lr": 0},
+    {"step": 2, "loss": 1.569, "grad_norm": 0.1451, "lr": 1e-05},
+    {"step": 3, "loss": 1.435, "grad_norm": 0.1464, "lr": 2e-05}
+  ],
+  "note": "Training verified working. Steps at ~27 min each after init overhead. Full 50-step run: ~22.5h. Adapter not saved (timeout before save_pretrained).",
+  "hardware": "AMD Ryzen 3 5300U, 16GB RAM, CPU-only"
+}
